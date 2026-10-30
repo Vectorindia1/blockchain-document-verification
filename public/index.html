@@ -197,6 +197,8 @@ td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
         <h2>Issue a certificate</h2>
         <label for="isid">Student ID</label><input id="isid" type="text" placeholder="S1001">
         <label for="ititle">Title</label><input id="ititle" type="text" placeholder="B.Sc. Computer Science">
+        <label for="ifile">Your own PDF (optional)</label><input id="ifile" type="file" accept=".pdf,application/pdf">
+        <small style="color:var(--muted)">Leave empty and the system generates a certificate for you.</small>
         <button class="btn" id="iss" type="button">Issue and record on chain</button>
         <div class="msg" id="issmsg"></div>
       </div>
@@ -450,7 +452,9 @@ $("reg").onclick = async () => {
 };
 $("iss").onclick = async () => {
   say("issmsg", "Writing to the chain…");
-  const j = await post("/admin/issue", { studentId: $("isid").value, title: $("ititle").value });
+  const fd = new FormData(); fd.append("studentId", $("isid").value); fd.append("title", $("ititle").value);
+  if ($("ifile").files[0]) fd.append("file", $("ifile").files[0]);
+  const j = await fetch("/admin/issue", { method: "POST", headers: adminH(), body: fd }).then((r) => r.json()); // browser sets the multipart header
   const m = $("issmsg");
   if (j.error) return say("issmsg", j.error, "err");
   say("issmsg", "Issued. Certificate ID:", "good"); m.append(el("div", { className: "mono", textContent: j.certId }), copyBtn(j.certId));

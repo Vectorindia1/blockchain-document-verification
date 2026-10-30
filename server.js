@@ -33,10 +33,11 @@ app.post("/admin/students", admin, wrap(async (q, s) => {
   db.students[studentId] = { name, pin }; save(); s.json({ ok: true });
 }));
 
-async function issueCert(studentId, title) {
+async function issueCert(studentId, title, upload) {
   const st = db.students[studentId];
   if (!st || !title) throw new Error("unknown student or missing title");
   const certId = ethers.hexlify(crypto.randomBytes(32));
+  if (upload && upload.subarray(0, 4).toString() !== "%PDF") throw new Error("the uploaded file is not a PDF");
   const doc = new PDF(), bufs = [];
   doc.on("data", (b) => bufs.push(b));
   const done = new Promise((r) => doc.on("end", r));
@@ -46,15 +47,15 @@ async function issueCert(studentId, title) {
     .fontSize(10).text(`Certificate ID: ${certId}`, { align: "center" })
     .text(`Issued: ${new Date().toISOString()}`, { align: "center" });
   doc.end(); await done;
-  const pdf = Buffer.concat(bufs);
+  const pdf = upload || Buffer.concat(bufs); // the university's own PDF if one was attached
   const tx = await (await reg.issue(certId, sha(pdf))).wait();
   fs.writeFileSync(`pdfs/${certId}.pdf`, pdf);
   db.certs[certId] = { studentId, title }; save();
   return { certId, pdf, tx: tx.hash };
 }
 
-app.post("/admin/issue", admin, wrap(async (q, s) => {
-  const { certId } = await issueCert(q.body.studentId, q.body.title);
+app.post("/admin/issue", admin, up.single("file"), wrap(async (q, s) => {
+  const { certId } = await issueCert(q.body.studentId, q.body.title, q.file?.buffer);
   s.json({ certId });
 }));
 
